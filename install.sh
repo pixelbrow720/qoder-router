@@ -101,7 +101,13 @@ EOF
   loginctl enable-linger "$USER" >/dev/null 2>&1 || true
 fi
 
-# 5. minta token bot Telegram
+# 5. generate admin key (utk keamanan endpoint /api/*)
+ADMIN_KEY="adm-$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+echo "$ADMIN_KEY" > backend/admin.key
+chmod 600 backend/admin.key
+echo "✓ admin key dibuat (backend/admin.key)"
+
+# 6. minta token bot Telegram
 echo ""
 echo "→ Masukkan token bot Telegram (dari @BotFather, /newbot):"
 printf "  Token: "
@@ -109,6 +115,8 @@ read -r TG_TOKEN
 mkdir -p bot
 echo "TELEGRAM_BOT_TOKEN=$TG_TOKEN" > bot/.env
 echo "QODER_BASE_URL=http://localhost:8010/v1" >> bot/.env
+echo "QODER_ADMIN_KEY=$ADMIN_KEY" >> bot/.env   # utk bot daftarkan PAT ke router
+chmod 600 bot/.env
 
 # 6. jalankan
 echo ""

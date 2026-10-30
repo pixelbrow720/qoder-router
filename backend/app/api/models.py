@@ -1,6 +1,12 @@
 from fastapi import APIRouter
 from app.services.model_catalog import public_model_catalog
 
+
+def _slug(nama: str) -> str:
+    """Model ID yang mudah dibaca: 'Kimi-K3.1-Pro' -> 'kimi-k3.1-pro'."""
+    return nama.lower().replace(" ", "-").replace("_", "-")
+
+
 router = APIRouter(tags=["models"])
 
 
@@ -9,7 +15,7 @@ async def list_models():
     models = public_model_catalog()
     data = [
         {
-                "id": model["key"],
+                "id": _slug(model["name"]),  # ID ramah: kimi-k3.1-pro, qwen3.8-flash, dst
                 "object": "model",
                 # Anthropic clients read `type` + `display_name`; OpenAI
                 # clients ignore the extra fields, so one list serves both.

@@ -10,10 +10,10 @@ Dipakai bot Telegram utk menampilkan "ada berapa kredit & kapan berakhirnya".
 """
 from __future__ import annotations
 
-import time
+import json
+import urllib.request
+import urllib.error
 from datetime import datetime, timezone
-
-import requests
 
 QODER_BASE = "https://openapi.qoder.sh"
 EXCHANGE = f"{QODER_BASE}/api/v1/jobToken/exchange"
@@ -28,24 +28,29 @@ HDR = {
 }
 
 
-def _job_token(pat: str, timeout=20) -> str | None:
+def _http_json(url, method="GET", body=None, headers=None, timeout=20):
+    """HTTP pakai urllib (bawaan Python — TANPA requests). Return dict atau {}."""
+    h = dict(HDR)
+    if headers:
+        h.update(headers)
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(url, data=data, headers=h, method=method)
     try:
-        r = requests.post(EXCHANGE, json={"personal_token": pat},
-                          headers=HDR, timeout=timeout)
-        if r.status_code != 200:
-            return None
-        d = r.json() or {}
-        return d.get("token") or d.get("device_token") or d.get("access_token")
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            if r.status != 200:
+                return {}
+            return json.loads(r.read().decode() or "{}")
     except Exception:
-        return None
+        return {}
+
+
+def _job_token(pat: str, timeout=20) -> str | None:
+    d = _http_json(EXCHANGE, "POST", {"personal_token": pat}, timeout=timeout)
+    return d.get("token") or d.get("device_token") or d.get("access_token") or None
 
 
 def _get(url: str, token: str, timeout=20) -> dict:
-    try:
-        r = requests.get(url, headers={**HDR, "Authorization": f"Bearer {token}"}, timeout=timeout)
-        return r.json() if r.status_code == 200 else {}
-    except Exception:
-        return {}
+    return _http_json(url, "GET", headers={"Authorization": f"Bearer {token}"}, timeout=timeout)
 
 
 def _ms_to_date(v) -> str | None:

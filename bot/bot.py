@@ -18,13 +18,26 @@ import os
 import sys
 import time
 import urllib.request
+import urllib.error
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 
-import requests
-
 import qoder_pat
 import store
+
+
+def _http(url, method="GET", json_body=None, params=None, timeout=30):
+    """HTTP pakai urllib (bawaan Python — TANPA requests). Return dict atau {}."""
+    if params:
+        url = url + "?" + urllib.parse.urlencode(params)
+    h = {"Content-Type": "application/json"}
+    data = json.dumps(json_body).encode() if json_body is not None else None
+    req = urllib.request.Request(url, data=data, headers=h, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode() or "{}")
+    except Exception:
+        return {}
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
@@ -64,11 +77,7 @@ MODELS = [
 
 
 def tg(method: str, **params) -> dict:
-    try:
-        r = requests.post(f"{API}/{method}", json=params, timeout=30)
-        return r.json()
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    return _http(f"{API}/{method}", "POST", json_body=params, timeout=30)
 
 
 def kirim(chat_id: int, teks: str, parse="Markdown"):
@@ -107,9 +116,8 @@ def register_ke_router(api_key: str, pats: list[str]) -> dict:
     if not pats:
         return {"masuk": 0, "dilewati": 0}
     try:
-        r = requests.post("http://127.0.0.1:8010/api/accounts/bulk",
-                          json={"owner_key": api_key, "pats": pats}, timeout=60)
-        return r.json() if r.status_code == 200 else {"masuk": 0, "dilewati": len(pats)}
+        return _http("http://127.0.0.1:8010/api/accounts/bulk", "POST",
+                     json_body={"owner_key": api_key, "pats": pats}, timeout=60) or {"masuk": 0, "dilewati": len(pats)}
     except Exception:
         return {"masuk": 0, "dilewati": len(pats)}
 
@@ -307,8 +315,8 @@ def utama():
             params = {"timeout": 50}
             if offset:
                 params["offset"] = offset
-            r = requests.get(f"{API}/getUpdates", params=params, timeout=60)
-            d = r.json()
+            r = _http(f"{API}/getUpdates", "GET", params=params, timeout=60)
+            d = r
             for upd in d.get("result", []):
                 offset = upd["update_id"] + 1
                 msg = upd.get("message") or upd.get("edited_message")

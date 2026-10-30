@@ -26,10 +26,19 @@ git clone --depth 1 "$REPO" "$DIR" 2>/dev/null || {
 cd "$DIR"
 
 # 2. install dependency backend
-echo "→ Install dependency (sekali saja) ..."
+echo "→ Install dependency (sekali saja, pakai binary wheel — tanpa compile) ..."
 python3 -m venv backend/.venv
-backend/.venv/bin/pip install --quiet --upgrade pip
-backend/.venv/bin/pip install --quiet -r backend/requirements.txt
+backend/.venv/bin/pip install --quiet --upgrade pip setuptools wheel
+# --prefer-binary: pakai wheel siap pakai (TANPA compile Rust).
+# --only-binary pydantic-core: paksa wheel utk bagian yang butuh Rust.
+backend/.venv/bin/pip install --quiet --prefer-binary --only-binary pydantic-core -r backend/requirements.txt || {
+  echo ""
+  echo "❌ Gagal install dependency."
+  echo "   Jika error soal Rust/cargo (pydantic-core):"
+  echo "   - Pakai Python 3.12 (paling kompatibel), ATAU"
+  echo "   - Install Rust:  curl https://sh.rustup.rs -sSf | sh  lalu  rustup default stable"
+  exit 1
+}
 
 # 3. buat perintah `qoder-router`
 mkdir -p "$BIN"

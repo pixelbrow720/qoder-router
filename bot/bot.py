@@ -26,11 +26,13 @@ import qoder_pat
 import store
 
 
-def _http(url, method="GET", json_body=None, params=None, timeout=30):
+def _http(url, method="GET", json_body=None, params=None, timeout=30, headers=None):
     """HTTP pakai urllib (bawaan Python — TANPA requests). Return dict atau {}."""
     if params:
         url = url + "?" + urllib.parse.urlencode(params)
     h = {"Content-Type": "application/json"}
+    if headers:
+        h.update(headers)
     data = json.dumps(json_body).encode() if json_body is not None else None
     req = urllib.request.Request(url, data=data, headers=h, method=method)
     try:
@@ -40,24 +42,25 @@ def _http(url, method="GET", json_body=None, params=None, timeout=30):
         return {}
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
-if not TOKEN:
-    # fallback: baca dari file .env se-folder (jangan commit!)
-    for nama in (".env", "token.txt"):
-        p = os.path.join(HERE, nama)
-        if os.path.exists(p):
-            for baris in open(p):
-                baris = baris.strip()
-                if baris.startswith("TELEGRAM_BOT_TOKEN="):
-                    TOKEN = baris.split("=", 1)[1].strip().strip('"')
-                elif baris and not baris.startswith("#") and not TOKEN:
-                    TOKEN = baris
-            break
+_env = {}
+for nama in (".env", "token.txt"):
+    p = os.path.join(HERE, nama)
+    if os.path.exists(p):
+        for baris in open(p):
+            baris = baris.strip()
+            if not baris or baris.startswith("#") or "=" not in baris:
+                continue
+            k, v = baris.split("=", 1)
+            _env[k.strip()] = v.strip().strip('"')
+        break
+
+TOKEN = (os.environ.get("TELEGRAM_BOT_TOKEN") or _env.get("TELEGRAM_BOT_TOKEN") or "").strip()
 if not TOKEN:
     print("TELEGRAM_BOT_TOKEN belum diisi (env / .env)"); sys.exit(1)
 
 API = f"https://api.telegram.org/bot{TOKEN}"
-BASE_URL = os.environ.get("QODER_BASE_URL", "http://localhost:8010/v1")
+BASE_URL = os.environ.get("QODER_BASE_URL") or _env.get("QODER_BASE_URL") or "http://localhost:8010/v1"
+ADMIN_KEY = os.environ.get("QODER_ADMIN_KEY") or _env.get("QODER_ADMIN_KEY") or ""
 
 # Daftar model (sumber: live model/list Qoder 2026-10-30) — id, nama, efforts, default
 MODELS = [
@@ -117,7 +120,8 @@ def register_ke_router(api_key: str, pats: list[str]) -> dict:
         return {"masuk": 0, "dilewati": 0}
     try:
         return _http("http://127.0.0.1:8010/api/accounts/bulk", "POST",
-                     json_body={"owner_key": api_key, "pats": pats}, timeout=60) or {"masuk": 0, "dilewati": len(pats)}
+                     json_body={"owner_key": api_key, "pats": pats}, timeout=60,
+                     headers={"Authorization": f"Bearer {ADMIN_KEY}"}) or {"masuk": 0, "dilewati": len(pats)}
     except Exception:
         return {"masuk": 0, "dilewati": len(pats)}
 

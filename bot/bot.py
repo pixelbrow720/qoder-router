@@ -44,7 +44,7 @@ if not TOKEN:
     print("TELEGRAM_BOT_TOKEN belum diisi (env / .env)"); sys.exit(1)
 
 API = f"https://api.telegram.org/bot{TOKEN}"
-BASE_URL = os.environ.get("QODER_BASE_URL", "http://185.198.27.232:8010/v1")
+BASE_URL = os.environ.get("QODER_BASE_URL", "http://localhost:8010/v1")
 
 # Daftar model (sumber: live model/list Qoder 2026-10-30) — id, nama, efforts, default
 MODELS = [

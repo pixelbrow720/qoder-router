@@ -1,13 +1,14 @@
 import logging
 from typing import Literal, Optional
 
-from fastapi import APIRouter
+from app.core.deps import require_admin
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.services import settings_service
 
 logger = logging.getLogger("qoderroute.api.settings")
-router = APIRouter(prefix="/api/settings", tags=["settings"])
+router = APIRouter(prefix="/api/settings", tags=["settings"], dependencies=[Depends(require_admin)])
 
 
 class SettingsUpdate(BaseModel):

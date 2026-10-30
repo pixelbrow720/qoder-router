@@ -16,8 +16,13 @@ from app.services.qoder_client import validate_pat, QODER_MODEL_DISPLAY
 from app.services import logbus
 from app.services import quota_service
 
+from app.core.deps import require_admin
+
 logger = logging.getLogger("qoderroute.api.accounts")
-router = APIRouter(prefix="/api/accounts", tags=["accounts"])
+# SEMUA endpoint /api/accounts butuh admin key — mencegah siapa pun mencuri PAT
+# lewat /api/accounts/{id}/pat (audit keamanan 2026-10-30).
+router = APIRouter(prefix="/api/accounts", tags=["accounts"],
+                   dependencies=[Depends(require_admin)])
 
 
 # ── Static routes FIRST (before /{account_id} shadow-catches them) ──

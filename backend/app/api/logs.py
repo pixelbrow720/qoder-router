@@ -3,13 +3,14 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from app.core.deps import require_admin
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
 from app.services import logbus, request_store
 
 logger = logging.getLogger("qoderroute.api.logs")
-router = APIRouter(prefix="/api/logs", tags=["logs"])
+router = APIRouter(prefix="/api/logs", tags=["logs"], dependencies=[Depends(require_admin)])
 
 STREAM_LIFETIME_SECONDS = 30.0
 KEEPALIVE_SECONDS = 10.0

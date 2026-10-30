@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 import os
 
@@ -22,15 +22,21 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"]
 
+    # API key ADMIN utk endpoint management (/api/*). WAJIB utk akses kelola
+    # akun/PAT — mencegah siapa pun mencuri PAT lewat /api/accounts/{id}/pat.
+    # Dibaca langsung dari os.environ (bukan via pydantic mapping) supaya pasti.
+
     data_dir: str = str(Path(__file__).parent.parent.parent / "data")
 
     # Optional trial worker script (not shipped in the public build).
     # Set QODER_WORKER_SCRIPT to enable the worker API.
     worker_script: str = os.environ.get("QODER_WORKER_SCRIPT", "")
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",   # jangan error utk env var tambahan (mis. QODER_ADMIN_KEY)
+    )
 
 
 settings = Settings()

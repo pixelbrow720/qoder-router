@@ -299,9 +299,12 @@ async def chat_completions(
                         trace.emit("error", f"local infrastructure error: {msg[:200]}", phase="error", outcome=log_outcome(error_kind, msg))
                         raise HTTPException(status_code=first.get("status") or 503, detail=msg)
                     if error_kind == "model_queue":
-                        # 10605: model queued upstream — don't fail the account.
-                        trace.emit("warn", f"model queued: {msg[:200]}", phase="error", outcome="queue")
-                        raise HTTPException(status_code=first.get("status") or 503, detail=msg)
+                        # 10605: kena antrean — JANGAN gagalkan akun & JANGAN nunggu.
+                        # Langsung SWAP ke PAT berikutnya (round-robin, ide user:
+                        # "kalau masuk queue langsung lanjut pakai PAT selanjutnya").
+                        # Akun tidak disalahkan (bukan salah akun kena antrean).
+                        trace.emit("warn", f"model queued, swapping account: {msg[:200]}", phase="swap", outcome="queue")
+                        continue  # swap ke akun berikutnya (round-robin)
                     if error_kind == "quota":
                         trace.emit("warn", "quota exceeded, swapping account", phase="swap", outcome="quota")
                         await pool.mark_quota_exceeded(account_id)

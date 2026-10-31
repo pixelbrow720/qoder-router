@@ -80,6 +80,21 @@ def _get_upstream() -> httpx.AsyncClient:
         _upstream_by_proxy[key] = client
     return client
 
+
+# System prompt Qoder native (16KB, identik qodercli) — dimuat dari file utk
+# paritas native. Tanpa ini router kirim system KOSONG -> beda dari native ->
+# Qoder balas aneh (mis. "Billing daily count exceeded").
+_QODER_SYS_PROMPT: Optional[str] = None
+def _qoder_system_prompt() -> str:
+    global _QODER_SYS_PROMPT
+    if _QODER_SYS_PROMPT is None:
+        try:
+            _f = os.path.join(os.path.dirname(__file__), "..", "..", "qoder-system-prompt.txt")
+            _QODER_SYS_PROMPT = open(_f).read()
+        except Exception:
+            _QODER_SYS_PROMPT = ""
+    return _QODER_SYS_PROMPT
+
 MODEL_KEY_MAP = {
     **{str(entry["key"]): str(entry["key"]) for entry in MODEL_CATALOG},
     # Kept for callers that still use the old private preview tier.  It is not
@@ -469,8 +484,11 @@ def _build_body(messages: list[dict], model_key: str, tools: Optional[list[dict]
         "session_type": "qodercli",
         "aliyun_user_type": "",
         "model_config": model_config,
-        "system": system_prompt,
-        "messages": normalized_messages,
+        "system": _qoder_system_prompt(),
+        "messages": (
+            [{"role": "system", "content": _qoder_system_prompt()}]
+            + list(normalized_messages or [])
+        ),
         "tools": [_normalize_tool(t) for t in tools] if tools else [],
         "parameters": parameters,
         # Native Qoder attaches this business envelope to every agent request.

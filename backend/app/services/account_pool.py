@@ -1,6 +1,9 @@
 import asyncio
 import logging
 import uuid
+
+# Round-robin counter utk sebar request merata ke semua PAT (ide user).
+_rr_counter = 0
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -163,11 +166,17 @@ class AccountPool:
         # both stick to a near-empty PAT while a healthy spare sits idle.
         # Caller must ``end_request`` (or transfer the lease to the SSE).
         async with self._in_flight_lock:
-            # Sebar request konkuren ke akun idle (in_flight terkecil dulu).
-            # Tanpa ini semua request menumpuk di akun pertama (id terkecil) ->
-            # rebutan jobToken lock + kena rate-limit per-akun Qoder -> macet/
-            # timeout saat banyak user (padahal native 1-request selalu cepat).
+            # ROUND-ROBIN (ide user: "biar terpakai rata semuanya"): rotasi posisi
+            # mulai tiap request -> semua PAT terpakai merata, tidak menumpuk di
+            # akun pertama. Tetap utamakan akun idle (in_flight kecil) utk sebar
+            # beban konkuren.
+            global _rr_counter
             available.sort(key=lambda a: (self._in_flight.get(a.id, 0), a.id))
+            n = len(available)
+            if n:
+                start = _rr_counter % n
+                _rr_counter += 1
+                available = available[start:] + available[:start]
             for idx, acc in enumerate(available):
                 remaining = acc.quota_remaining
                 near_empty = (

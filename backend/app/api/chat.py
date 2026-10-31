@@ -26,6 +26,47 @@ router = APIRouter(tags=["chat"])
 
 MAX_SWAP_ATTEMPTS = 3
 MODEL_QUEUE_RETRY_DELAY = 3.0
+# Probe event pertama dibatasi: kalau upstream lambat (recovery antrean 10605 /
+# cold start bisa ber menit-menit SEBELUM ada event publik), jangan blokir header
+# response — commit stream + kirim SSE keepalive selama menunggu. Tanpa ini klien
+# (OpenCode) dapat nol byte -> read-timeout -> "Reconnecting".
+PROBE_FAST_S = 5.0
+KEEPALIVE_S = 5.0
+
+
+async def _pull_first(gen):
+    """Ambil event pertama dari generator; StopAsyncIteration -> error sentinel."""
+    try:
+        return await gen.__anext__()
+    except StopAsyncIteration:
+        return {"type": "error", "message": "empty upstream response"}
+
+
+async def _keepalive_stream(aiter):
+    """Wrap iterator event: suntik keepalive saat event berikutnya lambat.
+
+    Mencegah klien read-timeout/reconnect BAIK saat menunggu event pertama
+    (recovery antrean / token pertama lama) MAUPUN saat jeda di tengah stream.
+    Men-yield dict event asli + {'type':'_keepalive'} saat menunggu > KEEPALIVE_S.
+    """
+    nxt = None
+    try:
+        while True:
+            if nxt is None:
+                nxt = asyncio.ensure_future(aiter.__anext__())
+            done, _ = await asyncio.wait({nxt}, timeout=KEEPALIVE_S)
+            if nxt in done:
+                try:
+                    event = nxt.result()
+                except StopAsyncIteration:
+                    return
+                nxt = None
+                yield event
+            else:
+                yield {"type": "_keepalive"}
+    finally:
+        if nxt is not None and not nxt.done():
+            nxt.cancel()
 
 
 def classify_chat_error(message: str, error_scope: str | None = None) -> str:
@@ -208,11 +249,25 @@ async def chat_completions(
                 gen = start_gen()
                 # Probe the first event before committing the SSE stream so an
                 # upstream error (403, etc.) surfaces with its real status instead
-                # of a 200 OK with [error] text buried in the body.
-                try:
-                    first = await gen.__anext__()
-                except StopAsyncIteration:
-                    first = {"type": "error", "message": "empty upstream response"}
+                # of a 200 OK with [error] text buried in the body.  The probe is
+                # bounded (PROBE_FAST_S): if upstream is slow (queue recovery /
+                # cold start) we must NOT block response headers — commit the
+                # stream now and send SSE keepalives while the first event
+                # resolves, so the client never read-times-out and reconnects.
+                probe = asyncio.ensure_future(_pull_first(gen))
+                done, _ = await asyncio.wait({probe}, timeout=PROBE_FAST_S)
+                if probe not in done:
+                    # Slow first event: stream immediately, keepalive while it
+                    # resolves.  Errors surface as SSE error chunks (headers
+                    # already sent), which OpenAI-compatible clients handle.
+                    leased = False  # ownership moves to the SSE response
+                    return _sse_response(
+                        trace,
+                        body.model or model_level,
+                        gen,
+                        pending_first=probe,
+                    )
+                first = probe.result()
 
                 # Flaky connection drop on the very first event — retry once.
                 if first.get("type") == "error" and looks_like_transient_stream_error(first.get("message", "")):
@@ -424,15 +479,16 @@ def _sse_response(
     trace: RequestTrace,
     model: str,
     gen,
-    first_event: dict,
+    first_event: dict | None = None,
+    pending_first=None,
 ) -> StreamingResponse:
     chunk_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
     created = int(time.time())
     account_id = trace.account_id
 
-    async def _chain():
-        """Yield the pre-pulled first event, then the rest of the generator."""
-        yield first_event
+    async def _chain(first):
+        """Yield the (already-resolved) first event, then the rest of the generator."""
+        yield first
         async for e in gen:
             yield e
 
@@ -445,7 +501,26 @@ def _sse_response(
         text_chars = 0
         try:
             yield _openai_chunk(chunk_id, model, created, {"role": "assistant", "content": ""})
-            async for event in _chain():
+            # Resolve the first event.  In deferred mode (pending_first) upstream
+            # is still working (queue recovery / long first token) — emit SSE
+            # keepalives while we wait so the client never read-times-out.
+            resolved_first = first_event
+            if pending_first is not None:
+                while True:
+                    done, _ = await asyncio.wait({pending_first}, timeout=KEEPALIVE_S)
+                    if pending_first in done:
+                        break
+                    yield ": keepalive\n\n"
+                try:
+                    resolved_first = pending_first.result()
+                except StopAsyncIteration:
+                    resolved_first = {"type": "error", "message": "empty upstream response"}
+                except Exception as e:  # noqa: BLE001
+                    resolved_first = {"type": "error", "message": f"upstream error: {e}"}
+            async for event in _keepalive_stream(_chain(resolved_first)):
+                if event["type"] == "_keepalive":
+                    yield ": keepalive\n\n"
+                    continue
                 if event["type"] == "text":
                     trace.mark_first_token()
                     text_chars += len(event["text"])
@@ -546,6 +621,8 @@ def _sse_response(
         finally:
             if account_id is not None:
                 await pool.end_request(account_id)
+            if pending_first is not None and not pending_first.done():
+                pending_first.cancel()
             try:
                 await gen.aclose()
             except Exception:  # noqa: BLE001

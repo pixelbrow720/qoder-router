@@ -49,3 +49,4 @@ backend/tests/
 
 # python venv (backend)
 .venv/
+backend/admin.key

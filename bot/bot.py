@@ -312,7 +312,9 @@ def utama():
         print("[bot] sinkron PAT -> router selesai")
     except Exception as e:
         print("[bot] sinkron gagal (tak fatal):", e)
-    print(f"[bot] @qoder_router_pixestlab_bot siap | base URL: {BASE_URL}")
+    _me = _http(f"{API}/getMe") or {}
+    _uname = ((_me.get("result") or {}).get("username")) or "?"
+    print(f"[bot] @{_uname} siap | base URL: {BASE_URL}")
     offset = None
     while True:
         try:

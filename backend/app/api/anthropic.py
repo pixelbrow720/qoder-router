@@ -36,8 +36,12 @@ from app.api.chat import (
     _client_session_id,
     _merge_tool_call_fragments,
     _finalize_tool_calls,
+    _pull_first,
+    _keepalive_stream,
     MAX_SWAP_ATTEMPTS,
     MODEL_QUEUE_RETRY_DELAY,
+    PROBE_FAST_S,
+    KEEPALIVE_S,
 )
 
 router = APIRouter(tags=["anthropic"])
@@ -401,10 +405,21 @@ async def create_message(
         try:
             if body.stream:
                 gen = start_gen()
-                try:
-                    first = await gen.__anext__()
-                except StopAsyncIteration:
-                    first = {"type": "error", "message": "empty upstream response"}
+                # Probe dibatasi (PROBE_FAST_S) — jangan blokir header response
+                # saat event pertama lambat (recovery antrean 10605 / cold start).
+                # Lihat chat.py: akar bug "Reconnecting" = pre-pull memblokir header
+                # sementara run_infer poll antrean bermenit-menit tanpa event publik.
+                probe = asyncio.ensure_future(_pull_first(gen))
+                done, _ = await asyncio.wait({probe}, timeout=PROBE_FAST_S)
+                if probe not in done:
+                    leased = False  # ownership moves to the SSE response
+                    return _anthropic_sse_response(
+                        trace,
+                        body.model or model_level,
+                        gen,
+                        pending_first=probe,
+                    )
+                first = probe.result()
 
                 if first.get("type") == "error" and looks_like_transient_stream_error(first.get("message", "")):
                     trace.emit("info", f"transient stream drop — retrying in 1s: {first.get('message', '')[:120]}", phase="retry")
@@ -624,13 +639,14 @@ def _anthropic_sse_response(
     trace: RequestTrace,
     model: str,
     gen,
-    first_event: dict,
+    first_event: dict | None = None,
+    pending_first=None,
 ) -> StreamingResponse:
     message_id = f"msg_{uuid.uuid4().hex[:24]}"
     account_id = trace.account_id
 
-    async def _chain():
-        yield first_event
+    async def _chain(first):
+        yield first
         async for e in gen:
             yield e
 
@@ -684,8 +700,27 @@ def _anthropic_sse_response(
                     "usage": {"input_tokens": 1, "output_tokens": 0},
                 },
             })
-            async for event in _chain():
+            # Resolve the first event.  In deferred mode (pending_first) upstream
+            # is still working (queue recovery / long first token) — emit SSE
+            # keepalives while we wait so the client never read-times-out.
+            resolved_first = first_event
+            if pending_first is not None:
+                while True:
+                    done, _ = await asyncio.wait({pending_first}, timeout=KEEPALIVE_S)
+                    if pending_first in done:
+                        break
+                    yield ": keepalive\n\n"
+                try:
+                    resolved_first = pending_first.result()
+                except StopAsyncIteration:
+                    resolved_first = {"type": "error", "message": "empty upstream response"}
+                except Exception as e:  # noqa: BLE001
+                    resolved_first = {"type": "error", "message": f"upstream error: {e}"}
+            async for event in _keepalive_stream(_chain(resolved_first)):
                 etype = event["type"]
+                if etype == "_keepalive":
+                    yield ": keepalive\n\n"
+                    continue
                 if etype == "text":
                     trace.mark_first_token()
                     if open_block_type != "text":
@@ -812,6 +847,8 @@ def _anthropic_sse_response(
         finally:
             if account_id is not None:
                 await pool.end_request(account_id)
+            if pending_first is not None and not pending_first.done():
+                pending_first.cancel()
             try:
                 await gen.aclose()
             except Exception:  # noqa: BLE001

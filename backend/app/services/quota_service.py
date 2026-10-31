@@ -124,7 +124,8 @@ def _parse_quota(quota: dict) -> dict:
 async def fetch_plan_quota(pat: str) -> Optional[dict]:
     """Fetch plan + quota + userinfo for a PAT. Returns merged dict or None on failure."""
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        from app.services import proxy_pool
+        async with httpx.AsyncClient(timeout=15, proxy=proxy_pool.next_proxy()) as client:
             token = await _get_job_token(client, pat)
             if not token:
                 return None
@@ -241,7 +242,8 @@ def _plan_name_from_quota(plan_tier: str, plan_name: str, quota_total) -> str:
 
 
 async def get_job_token(pat: str) -> Optional[str]:
-    async with httpx.AsyncClient(timeout=15) as client:
+    from app.services import proxy_pool
+    async with httpx.AsyncClient(timeout=15, proxy=proxy_pool.next_proxy()) as client:
         return await _get_job_token(client, pat)
 
 
@@ -252,7 +254,8 @@ async def get_uid(pat: str) -> Optional[str]:
     if pat in _uid_cache:
         return _uid_cache[pat]
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        from app.services import proxy_pool
+        async with httpx.AsyncClient(timeout=15, proxy=proxy_pool.next_proxy()) as client:
             token = await _get_job_token(client, pat)
             if not token:
                 return None
@@ -277,7 +280,8 @@ async def get_user_identity(pat: str) -> Optional[dict]:
     (input HARUS {uid, organization_id, organization_tags, data_policy_agreed}
     identik dgn native, beda input = beda blob info = ketahuan bukan native)."""
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        from app.services import proxy_pool
+        async with httpx.AsyncClient(timeout=15, proxy=proxy_pool.next_proxy()) as client:
             token = await _get_job_token(client, pat)
             if not token:
                 return None

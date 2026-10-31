@@ -53,6 +53,9 @@ NATIVE_COSY_VERSION = "1.1.28"
 
 _signer_client: Optional[httpx.AsyncClient] = None
 _upstream_client: Optional[httpx.AsyncClient] = None
+# Client upstream PER-PROXY (pooling + rotasi) — tiak request keluar IP proxy
+# berbeda supaya throttle Qoder tidak menumpuk di satu IP VPS.
+_upstream_by_proxy: dict[str, httpx.AsyncClient] = {}
 
 
 def _get_signer() -> httpx.AsyncClient:
@@ -63,14 +66,19 @@ def _get_signer() -> httpx.AsyncClient:
 
 
 def _get_upstream() -> httpx.AsyncClient:
-    global _upstream_client
-    if _upstream_client is None:
-        _upstream_client = httpx.AsyncClient(
+    from app.services import proxy_pool
+    proxy = proxy_pool.next_proxy()
+    key = proxy or "__direct__"
+    client = _upstream_by_proxy.get(key)
+    if client is None:
+        client = httpx.AsyncClient(
             timeout=httpx.Timeout(300, connect=20),
             limits=httpx.Limits(max_keepalive_connections=16, max_connections=32),
             http2=False,
+            proxy=proxy,
         )
-    return _upstream_client
+        _upstream_by_proxy[key] = client
+    return client
 
 MODEL_KEY_MAP = {
     **{str(entry["key"]): str(entry["key"]) for entry in MODEL_CATALOG},

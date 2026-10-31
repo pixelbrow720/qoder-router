@@ -74,9 +74,13 @@ MODELS = [
     ("gmodel", "GLM-5.3", ["low", "high", "max"], "high", "thinking selalu"),
     ("gfmodel", "GLM-5.3-Flash", ["high", "max"], "max", "thinking selalu"),
     ("dmodel", "DeepSeek-V4-Pro", ["high", "max"], "max", "bisa on/off"),
-    ("dfmodel", "DeepSeek-Flash", ["low", "high", "max"], "high", "bisa on/off"),
-    ("mmodel", "MiniMax-M3.1-Flash", [], "-", "tanpa thinking"),
+    ("dfmodel", "DeepSeek-V4-Flash", ["low", "high", "max"], "high", "bisa on/off"),
+    ("mmodel", "MiniMax-M3", [], "-", "tanpa thinking"),
 ]
+
+
+def _mid(nama):
+    return nama.lower().replace(" ", "-").replace("_", "-")
 
 
 def tg(method: str, **params) -> dict:
@@ -193,7 +197,7 @@ def handle_start(chat_id):
 
 def handle_models(chat_id):
     # Daftar model ID dlm blok kode (tap utk salin) + info reasoning effort
-    ids = "\n".join(mid for mid, *_ in MODELS)
+    ids = "\n".join(_mid(nama) for _, nama, *_ in MODELS)
     baris = [
         "🗂 *Model ID* (tap blok utk salin):",
         f"```\n{ids}\n```",
@@ -202,7 +206,7 @@ def handle_models(chat_id):
     ]
     for mid, nama, eff, defau, ket in MODELS:
         eff_s = "/".join(eff) if eff else "tanpa thinking"
-        baris.append(f"`{mid}` — *{nama}*: {eff_s} (default `{defau}`)")
+        baris.append(f"`{_mid(nama)}` — *{nama}*: {eff_s} (default `{defau}`)")
     baris.append("")
     baris.append("_`off`/`none` = mati (model yg bisa on/off). Level tak didukung otomatis diklam ke terdekat._")
     kirim(chat_id, "\n".join(baris))

@@ -60,6 +60,7 @@ if not TOKEN:
 
 API = f"https://api.telegram.org/bot{TOKEN}"
 BASE_URL = os.environ.get("QODER_BASE_URL") or _env.get("QODER_BASE_URL") or "http://localhost:8010/v1"
+MAINTENANCE = True  # True = bot balas "maintenance" utk semua pesan (setelah router normal -> False)
 ADMIN_KEY = os.environ.get("QODER_ADMIN_KEY") or _env.get("QODER_ADMIN_KEY") or ""
 
 # Daftar model (sumber: live model/list Qoder 2026-10-30) — id, nama, efforts, default
@@ -275,6 +276,10 @@ def proses(msg: dict):
     privat = (tipe_chat == "private")   # API key hanya utk chat pribadi (anti bocor)
     text = (msg.get("text") or "").strip()
     doc = msg.get("document")
+
+    if MAINTENANCE:
+        kirim(chat, "🛠 *Router sedang maintenance.*\nTim sedang memperbaiki server. Coba lagi nanti ya. Terima kasih sabarnya \U0001F64F")
+        return
 
     if text.startswith("/start"):
         handle_start(chat)

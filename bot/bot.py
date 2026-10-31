@@ -64,9 +64,8 @@ ADMIN_KEY = os.environ.get("QODER_ADMIN_KEY") or _env.get("QODER_ADMIN_KEY") or 
 
 # Daftar model (sumber: live model/list Qoder 2026-10-30) — id, nama, efforts, default
 MODELS = [
-    ("auto", "Auto", [], "-", "routing otomatis (server pilih)"),
-    ("ultimate", "Ultimate", ["low", "medium", "high", "xhigh", "max"], "high", "top-tier"),
-    ("efficient", "Efficient", [], "-", "cepat/murah"),
+    ("smodel", "Sonus", ["low", "medium", "high", "xhigh", "max"], "high", "thinking selalu"),
+    ("cmodel", "Cantus", ["low", "medium", "high", "xhigh", "max"], "high", "thinking selalu"),
     ("qmodel_38max", "Qwen3.8-Max", ["low", "medium", "xhigh"], "medium", "bisa on/off"),
     ("qfmodel", "Qwen3.8-Flash", ["low", "medium", "xhigh"], "medium", "bisa on/off"),
     ("kmodel_latest", "Kimi-K3.1-Pro", ["low", "high", "max"], "high", "thinking selalu"),
@@ -74,8 +73,8 @@ MODELS = [
     ("gmodel", "GLM-5.3", ["low", "high", "max"], "high", "thinking selalu"),
     ("gfmodel", "GLM-5.3-Flash", ["high", "max"], "max", "thinking selalu"),
     ("dmodel", "DeepSeek-V4-Pro", ["high", "max"], "max", "bisa on/off"),
-    ("dfmodel", "DeepSeek-V4-Flash", ["low", "high", "max"], "high", "bisa on/off"),
-    ("mmodel", "MiniMax-M3", [], "-", "tanpa thinking"),
+    ("dfmodel", "DeepSeek-V4.1-Flash-1017", ["low", "high", "max"], "high", "bisa on/off"),
+    ("mmodel", "MiniMax-M3.1-Flash", [], "-", "tanpa thinking"),
 ]
 
 

@@ -7,6 +7,14 @@ engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,
     connect_args={"check_same_thread": False, "timeout": 30},
+    # Pool kekecilan = request rebutan koneksi DB saat banyak user -> first-token
+    # melambung 30-63s (terlihat "kosong"/timeout). Perbesar pool + recycle supaya
+    # request tidak menunggu koneksi. SQLite WAL menangani konkurensi bacanya.
+    pool_size=25,
+    max_overflow=75,
+    pool_timeout=10,
+    pool_recycle=300,
+    pool_pre_ping=True,
 )
 
 

@@ -163,6 +163,11 @@ class AccountPool:
         # both stick to a near-empty PAT while a healthy spare sits idle.
         # Caller must ``end_request`` (or transfer the lease to the SSE).
         async with self._in_flight_lock:
+            # Sebar request konkuren ke akun idle (in_flight terkecil dulu).
+            # Tanpa ini semua request menumpuk di akun pertama (id terkecil) ->
+            # rebutan jobToken lock + kena rate-limit per-akun Qoder -> macet/
+            # timeout saat banyak user (padahal native 1-request selalu cepat).
+            available.sort(key=lambda a: (self._in_flight.get(a.id, 0), a.id))
             for idx, acc in enumerate(available):
                 remaining = acc.quota_remaining
                 near_empty = (

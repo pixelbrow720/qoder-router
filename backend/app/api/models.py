@@ -12,7 +12,7 @@ router = APIRouter(tags=["models"])
 
 @router.get("/v1/models")
 async def list_models():
-    models = public_model_catalog()
+    models = [m for m in public_model_catalog() if m.get("kind") == "model"]
     data = [
         {
                 "id": _slug(model["name"]),  # ID ramah: kimi-k3.1-pro, qwen3.8-flash, dst

@@ -10,23 +10,24 @@ from typing import Any
 
 
 MODEL_CATALOG: tuple[dict[str, Any], ...] = (
+    # Tier routing (internal — tidak diiklankan di /v1/models; "auto" = fallback).
     {"key": "auto", "name": "Auto", "credit_factor": 1.0, "is_reasoning": False, "is_vision": True, "max_input_tokens": 180_000, "context_windows": [], "kind": "tier"},
     {"key": "ultimate", "name": "Ultimate", "credit_factor": 1.6, "is_reasoning": True, "is_vision": True, "max_input_tokens": 1_000_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "tier"},
     {"key": "performance", "name": "Performance", "credit_factor": 1.1, "is_reasoning": False, "is_vision": True, "max_input_tokens": 1_000_000, "context_windows": [272_000, 400_000, 1_000_000], "kind": "tier"},
     {"key": "efficient", "name": "Efficient", "credit_factor": 0.3, "is_reasoning": False, "is_vision": True, "max_input_tokens": 180_000, "context_windows": [], "kind": "tier"},
     {"key": "lite", "name": "Lite", "credit_factor": 0.0, "is_reasoning": False, "is_vision": False, "max_input_tokens": 180_000, "context_windows": [], "kind": "tier"},
+    # 11 model nyata sesuai Qoder (2 bawaan: Sonus + Cantus). ID = slug name.
+    {"key": "smodel", "name": "Sonus", "credit_factor": 3.2, "is_reasoning": True, "is_vision": True, "max_input_tokens": 180_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "model"},
     {"key": "cmodel", "name": "Cantus", "credit_factor": 3.2, "is_reasoning": True, "is_vision": True, "max_input_tokens": 180_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "model"},
     {"key": "qmodel_38max", "name": "Qwen3.8-Max", "credit_factor": 0.5, "is_reasoning": True, "is_vision": True, "max_input_tokens": 180_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "model"},
     {"key": "qfmodel", "name": "Qwen3.8-Flash", "credit_factor": 0.1, "is_reasoning": True, "is_vision": True, "max_input_tokens": 180_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "model"},
-    {"key": "qmodel_latest", "name": "Qwen3.7-Max", "credit_factor": 0.5, "is_reasoning": False, "is_vision": True, "max_input_tokens": 1_000_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "model"},
-    {"key": "qmodel", "name": "Qwen3.7-Plus", "credit_factor": 0.1, "is_reasoning": False, "is_vision": True, "max_input_tokens": 1_000_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "model"},
     {"key": "kmodel_latest", "name": "Kimi-K3.1-Pro", "credit_factor": 0.8, "is_reasoning": False, "is_vision": True, "max_input_tokens": 180_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "model"},
     {"key": "kmodel", "name": "Kimi-K2.8-Preview", "credit_factor": 0.3, "is_reasoning": False, "is_vision": True, "max_input_tokens": 180_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "model"},
     {"key": "gmodel", "name": "GLM-5.3", "credit_factor": 0.6, "is_reasoning": True, "is_vision": True, "max_input_tokens": 180_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "model"},
     {"key": "gfmodel", "name": "GLM-5.3-Flash", "credit_factor": 0.05, "is_reasoning": True, "is_vision": True, "max_input_tokens": 1_000_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "model"},
     {"key": "dmodel", "name": "DeepSeek-V4-Pro", "credit_factor": 0.8, "is_reasoning": True, "is_vision": True, "max_input_tokens": 1_000_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "model"},
-    {"key": "dfmodel", "name": "DeepSeek-V4-Flash", "credit_factor": 0.3, "is_reasoning": True, "is_vision": True, "max_input_tokens": 1_000_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "model"},
-    {"key": "mmodel", "name": "MiniMax-M3", "credit_factor": 0.2, "is_reasoning": False, "is_vision": True, "max_input_tokens": 1_000_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "model"},
+    {"key": "dfmodel", "name": "DeepSeek-V4.1-Flash-1017", "credit_factor": 0.3, "is_reasoning": True, "is_vision": True, "max_input_tokens": 1_000_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "model"},
+    {"key": "mmodel", "name": "MiniMax-M3.1-Flash", "credit_factor": 0.2, "is_reasoning": False, "is_vision": True, "max_input_tokens": 1_000_000, "context_windows": [200_000, 400_000, 1_000_000], "kind": "model"},
 )
 
 MODEL_BY_KEY = {entry["key"]: entry for entry in MODEL_CATALOG}

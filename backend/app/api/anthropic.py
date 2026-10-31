@@ -17,7 +17,7 @@ import re
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -369,12 +369,22 @@ async def create_message(
     tool_choice = _convert_tool_choice(body.tool_choice)
     reasoning_effort = _reasoning_effort_from_thinking(body.thinking)
     session_id = _client_session_id(request.headers)
+    # API key = isolasi per-user. x-api-key (klien Anthropic) / Authorization
+    # (gaya OpenAI). WAJIB dipass sbg owner_key ke get_next_account — tanpa ini
+    # request memakai pool global (owner_key null) -> bisa nyedot PAT milik user
+    # lain (BOCOR antar user). Sama ketatnya dgn /v1/chat/completions.
+    api_key = (request.headers.get("x-api-key") or "").strip()
+    if not api_key:
+        auth = request.headers.get("Authorization", "")
+        api_key = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if not api_key:
+        raise HTTPException(status_code=401, detail="API key dibutuhkan (x-api-key atau Authorization: Bearer sk-...)")
     tried_ids: set[int] = set()
     model_level = _resolve_level(body.model)
     trace = RequestTrace("anthropic", model_level)
 
     for _ in range(MAX_SWAP_ATTEMPTS):
-        account = await pool.get_next_account(db, exclude_ids=tried_ids)
+        account = await pool.get_next_account(db, exclude_ids=tried_ids, owner_key=api_key)
         if not account:
             break
 

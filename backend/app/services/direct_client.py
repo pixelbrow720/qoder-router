@@ -401,9 +401,17 @@ def _build_body(messages: list[dict], model_key: str, tools: Optional[list[dict]
     # {max_tokens} ( + context_length bila eksplisit )); server memakai default
     # thinking_config model. Mengirim effort karangan = beda byte vs native
     # dan kena jebakan nilai dibuang diam-diam (BEDAH-REASONING-MATI §3).
-    if _client_sent_effort(reasoning_effort):
-        parameters["reasoning_effort"] = effort
-        parameters["enable_thinking"] = bool(thinking_enabled)
+    # JANGAN kirim reasoning_effort/enable_thinking — 9router & native qodercli
+    # default TIDAK mengirim field ini (model tetap mikir + menjawab). Tes 2026-10-31:
+    # mengirim reasoning_effort (high/max) = model HANYA mikir 50-200 chunk tapi
+    # 0 content -> klien (ZCode) tampil KOSONG. Tanpa field = content muncul.
+    # Effort level dikontrol model by default, bukan via parameter (beda byte
+    # vs native = kena jebakan nilai dibuang diam-diam, BEDAH-REASONING-MATI §3).
+    # (reasoning_effort/enable_thinking hanya utk knob eksplisit native, yang
+    #  jarang dipakai; utk klien spt ZCode cukup biarkan default.)
+    # if _client_sent_effort(reasoning_effort):
+    #     parameters["reasoning_effort"] = effort
+    #     parameters["enable_thinking"] = bool(thinking_enabled)
     # context_length hanya utk jendela EKSPLISIT yang didukung model
     # (native: E?.contextWindow !== undefined && ru(g, E.contextWindow)) —
     # default run TIDAK pernah membawa context_length.
@@ -631,9 +639,14 @@ def _normalize_tool(t: dict) -> dict:
 #   Batas tunggu total = yZQ 3600000ms (env QODER_MODEL_QUEUE_MAX_WAIT_MS).
 # Router sebelumnya langsung melempar 403 -> kelihatan "selalu diantre"
 # padahal native menunggu antrean sampai dilayani (akar beda hasil 2026-10-30).
-QUEUE_POLL_MIN_S = 0.5
+# 9router RE (open-sse/shared/qoder/queue.js): jangan retry antrean < 15s —
+# "Qoder's queue answers retryAfterSeconds:2 while still refusing; replaying
+# that fast MAKES THE THROTTLE WORSE". Floor 0.5s lama = trigger throttle.
+QUEUE_POLL_MIN_S = 15.0
 QUEUE_POLL_MAX_S = 30.0
-DEFAULT_QUEUE_MAX_WAIT_S = 3600.0
+# 9router: max 10 menit (bukan 1 jam) — "3 menit cukup utk beberapa window 30s
+# lalu balas error retryable, bukan nge-hang". 1 jam = tahan request klien lama.
+DEFAULT_QUEUE_MAX_WAIT_S = 600.0
 
 
 class QueueStatusUnavailable(Exception):
